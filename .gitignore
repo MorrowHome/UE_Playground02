@@ -1,0 +1,39 @@
+# Unreal Engine generated output and local caches
+/Binaries/
+/DerivedDataCache/
+/Intermediate/
+/Saved/
+
+# Plugin-generated output. Keep plugin Binaries: binary-only plugins may need it.
+/Plugins/**/Intermediate/
+/Plugins/**/Saved/
+/Plugins/**/DerivedDataCache/
+
+# Generated IDE projects and local settings
+.vs/
+.idea/
+.vscode/
+*.sln
+*.slnx
+*.suo
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.opendb
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.code-workspace
+*.xcodeproj/
+*.xcworkspace/
+
+# Local operating-system files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Keep Config, Content, Source, Build, *.uproject and *.uplugin in Git.
+# Build may contain required icons and packaging configuration.
+
+.codex/
+.cursor/

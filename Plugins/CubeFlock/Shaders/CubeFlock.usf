@@ -1,0 +1,103 @@
+#include "/Engine/Public/Platform.ush"
+
+struct FBird { float4 Position; float4 Velocity; };
+StructuredBuffer<FBird> BirdsIn;
+RWStructuredBuffer<FBird> BirdsOut;
+RWTexture2D<float4> PositionsOut;
+uint BirdCount;
+float DeltaTime;
+float Time;
+float Radius;
+float MoveSpeed;
+float NeighborDistance;
+float Separation;
+float Alignment;
+float Cohesion;
+float3 FollowTarget;
+float FollowStrength;
+groupshared float3 TilePosition[64];
+groupshared float3 TileVelocity[64];
+
+float3 SafeDirection(float3 V)
+{
+    return V * rsqrt(max(dot(V, V), 0.0001));
+}
+
+[numthreads(64, 1, 1)]
+void MainCS(uint3 DispatchId : SV_DispatchThreadID, uint3 GroupId : SV_GroupThreadID)
+{
+    uint Index = DispatchId.x;
+    uint Lane = GroupId.x;
+    // Inactive lanes must still participate in every group barrier.
+    FBird Bird = BirdsIn[min(Index, BirdCount - 1)];
+    float3 P = Bird.Position.xyz;
+    float3 V = Bird.Velocity.xyz;
+    float3 Separate = 0, AverageVelocity = 0, AveragePosition = 0;
+    uint Neighbors = 0;
+    float NearSq = NeighborDistance * NeighborDistance;
+    float SeparateSq = 140.0 * 140.0;
+    for (uint Base = 0; Base < BirdCount; Base += 64)
+    {
+        uint Other = min(Base + Lane, BirdCount - 1);
+        TilePosition[Lane] = BirdsIn[Other].Position.xyz;
+        TileVelocity[Lane] = BirdsIn[Other].Velocity.xyz;
+        GroupMemoryBarrierWithGroupSync();
+        uint TileCount = min(64u, BirdCount - Base);
+        for (uint J = 0; J < TileCount; ++J)
+        {
+            float3 Difference = P - TilePosition[J];
+            float D2 = dot(Difference, Difference);
+            if (Base + J != Index && D2 < NearSq)
+            {
+                AverageVelocity += TileVelocity[J];
+                AveragePosition += TilePosition[J];
+                Neighbors++;
+                if (D2 < SeparateSq)
+                    Separate += Difference / max(D2, 1.0);
+            }
+        }
+        GroupMemoryBarrierWithGroupSync();
+    }
+    if (Index >= BirdCount) return;
+
+    float3 Acceleration = 0;
+    if (Neighbors > 0)
+    {
+        Acceleration += Separation * SafeDirection(Separate);
+        Acceleration += Alignment * (SafeDirection(AverageVelocity / Neighbors) - SafeDirection(V));
+        Acceleration += Cohesion * SafeDirection(AveragePosition / Neighbors - P);
+    }
+    // Slowly moving shared attractor keeps the flock exploring the volume.
+    float3 Target = float3(cos(Time * 0.23), sin(Time * 0.23), sin(Time * 0.37) * 0.18) * Radius * 0.42;
+    if (FollowStrength > 0)
+    {
+        // Steer toward the mouse while retaining flock separation and alignment.
+        Acceleration += FollowStrength * (SafeDirection(FollowTarget - P) - V / MoveSpeed * 0.35);
+    }
+    else
+    {
+        Acceleration += 0.12 * SafeDirection(Target - P);
+    }
+    float3 EllipsoidP = P / float3(Radius, Radius, Radius * 0.45);
+    float Edge = length(EllipsoidP);
+    Acceleration -= SafeDirection(P * float3(1, 1, 2.2)) * saturate((Edge - 0.7) / 0.3) * 4.0;
+    V += Acceleration * MoveSpeed * DeltaTime * 1.8;
+    float SpeedNow = length(V);
+    V = (SpeedNow > 0.001 ? V / SpeedNow : float3(1, 0, 0)) * clamp(SpeedNow, MoveSpeed * 0.65, MoveSpeed * 1.25);
+    P += V * DeltaTime;
+    Edge = length(P / float3(Radius, Radius, Radius * 0.45));
+    if (Edge > 1.0)
+    {
+        P /= Edge;
+        float3 Normal = SafeDirection(P * float3(1, 1, 1.0 / (0.45 * 0.45)));
+        V -= 1.5 * max(dot(V, Normal), 0.0) * Normal;
+    }
+    Bird.Position = float4(P, 1);
+    Bird.Velocity = float4(V, 0);
+    BirdsOut[Index] = Bird;
+    PositionsOut[uint2(Index % 64, Index / 64)] = float4(P, 1);
+}
+
+
+
+
