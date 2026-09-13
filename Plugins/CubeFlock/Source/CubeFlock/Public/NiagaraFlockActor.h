@@ -21,6 +21,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Flock")
 	TObjectPtr<UNiagaraSystem> FlockSystem;
 
+	/** Soft reference avoids loading Niagara assets while early module CDOs are constructed. */
+	UPROPERTY(EditDefaultsOnly, Category="Flock")
+	TSoftObjectPtr<UNiagaraSystem> DefaultFlockSystem;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Flock|Mouse")
 	bool bFollowMouse = true;
 

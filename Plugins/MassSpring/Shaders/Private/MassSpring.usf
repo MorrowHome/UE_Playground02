@@ -1,0 +1,13 @@
+﻿#include "/Engine/Public/Platform.ush"
+
+RWStructuredBuffer<float4> OutValues;
+uint ValueCount;
+
+[numthreads(64, 1, 1)]
+void TestCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+	uint Index = DispatchThreadId.x;
+	if (Index >= ValueCount)
+		return;
+	OutValues[Index] = float4(float(Index), 2.0, 3.0, 1.0);
+}

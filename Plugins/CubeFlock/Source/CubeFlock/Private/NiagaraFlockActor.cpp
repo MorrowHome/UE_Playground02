@@ -3,7 +3,6 @@
 #include "NiagaraSystem.h"
 #include "GameFramework/PlayerController.h"
 #include "InputCoreTypes.h"
-#include "UObject/ConstructorHelpers.h"
 
 ANiagaraFlockActor::ANiagaraFlockActor()
 {
@@ -12,23 +11,35 @@ ANiagaraFlockActor::ANiagaraFlockActor()
 	Niagara = CreateDefaultSubobject<UNiagaraComponent>(TEXT("Niagara"));
 	SetRootComponent(Niagara);
 	Niagara->SetAutoActivate(true);
-	static ConstructorHelpers::FObjectFinder<UNiagaraSystem> SystemAsset(
-		TEXT("/Game/NiagaraFlockDemo/NS_CubeFlock.NS_CubeFlock"));
-	if (SystemAsset.Succeeded())
-	{
-		FlockSystem = SystemAsset.Object;
-		Niagara->SetAsset(FlockSystem);
-	}
+	// This module registers global shaders at PostConfigInit. Loading a Niagara
+	// system here can run its PostLoad before the Niagara module has started.
+	DefaultFlockSystem = TSoftObjectPtr<UNiagaraSystem>(FSoftObjectPath(
+		TEXT("/Game/NiagaraFlockDemo/NS_CubeFlock.NS_CubeFlock")));
 }
 
 void ANiagaraFlockActor::BeginPlay()
 {
 	Super::BeginPlay();
+	if (!FlockSystem)
+	{
+		FlockSystem = Niagara->GetAsset();
+		if (!FlockSystem)
+		{
+			FlockSystem = DefaultFlockSystem.LoadSynchronous();
+		}
+	}
 	if (FlockSystem && Niagara->GetAsset() != FlockSystem)
 	{
 		Niagara->SetAsset(FlockSystem);
 	}
-	Niagara->Activate(true);
+	if (FlockSystem)
+	{
+		Niagara->Activate(true);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("NiagaraFlockActor %s has no Niagara system."), *GetName());
+	}
 }
 
 void ANiagaraFlockActor::Tick(float DeltaSeconds)
